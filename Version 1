@@ -1,0 +1,69 @@
+using StatsBase
+using HypothesisTests
+using Distributions
+
+num_steps_history = 6000       #ηk的长度
+num_points = 4096             #点的个数
+point_history = []            #ηk的记录
+alpha =  1/6                  #α的取值
+H = alpha + 1/2               #Hurst Coefficient
+
+
+#我们先一次性取出10^8个随机数
+A = rand(10^8)
+
+#println(mean(A))
+#println(var(A))
+#println(length(A))
+
+#先对序列ηk进行定义，并且确定其长度为6000，共4096个点
+Yita = []
+for i in 1:num_points  
+    choosed_random_numbers = A[(i-1)*num_steps_history + 1 : i*num_steps_history]
+    push!(Yita , choosed_random_numbers)
+   # println(length(choosed_random_numbers))
+end
+# println(Yita)
+length(Yita)
+
+#根据序列定义确定函数
+
+function g(x)
+    return (1 - x)^( -1 / alpha ) - 1
+end
+
+History=[]
+
+for i in 1:num_points
+    Random_History=Yita[i]
+    history_each_point = []
+    #length(Random_History)
+    for j in 1:num_steps_history
+        x = Random_History[j]
+        result = g(x)
+        result = ceil(result)
+        if result > num_steps_history
+            index=-1              #just smaller than 0 is okay
+        else
+            result = Int(result)
+            index = j - result
+        end
+        #finish the random walk
+        if  index <= 0 
+            random_walk = rand([-1 , 1])
+        else
+            random_walk = history_each_point[index]
+        end
+        push!(history_each_point , random_walk)
+    end
+    push!(History, history_each_point)
+end
+
+#检测一下
+
+println(History[100])
+
+
+#综上我们成功定义了所需要的ηk序列并且将其保存在了History数组中以便调用
+#下面我们将考虑如何对点的随机游走进行处理
+
