@@ -67,3 +67,148 @@ println(History[100])
 #综上我们成功定义了所需要的ηk序列并且将其保存在了History数组中以便调用
 #下面我们将考虑如何对点的随机游走进行处理
 
+
+#综上我们成功定义了所需要的ηk序列并且将其保存在了History数组中以便调用
+#下面我们将考虑如何对点的随机游走进行处理
+
+# 定义结构体
+struct Point
+    coords::Vector{Int}   # 点的坐标
+    i::Int           # 点的索引
+    j::Int           # 点的操作次数
+    k::Int           # 点的质量
+    t::Int           # 0 为可以移动，1 为不能移动
+end
+
+mutable struct Point_History
+    i::Int
+    j::Int
+    t::Int
+    index::Vector{Int}
+end
+
+all_horizontal_differences = []
+all_origin_horizontal_differences = []
+locomotion = []
+final_top_points = []
+final_top_points_original = []
+
+
+
+    # 定义一个函数来处理每个模拟
+function handle_simulation(sim::Int)
+    points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]       #define each points 
+    trajectories = [Point[] for _ in points]                         #define the trajectories
+        for (index, point) in enumerate(points)
+            push!(trajectories[index], point)
+        end
+    Histories = [Point_History(i, 0, 0, []) for i in x_min:x_max]    #define the Histories
+    
+
+    # 定义一个数组，用于存储特定步数时的结果
+    special_steps_results = []
+
+    for step in 1:num_steps
+        # 每一步都重新生成随机数和 g 函数结果
+        movable_points = filter(p -> p.t == 0, points)
+        num_movable = length(movable_points)
+        random_numbers = splice!(B, 1:num_movable)                  # 从预生成的随机数序列中提取
+
+        results = map(η -> (1 - η) ^ (-1 / a) - 1, random_numbers)
+        results = ceil.(Int, results)
+
+        for (index, point) in enumerate(points)
+            if point.t == 0
+                movable_index = findfirst(p -> p.i == point.i, movable_points)
+                if movable_index !== nothing
+                    result = results[movable_index]
+                    indice = num_steps_history + step - result
+
+                    if indice < 0
+                        random_change = rand([-1, 1])  # 如果 indice < 0，则随机选择 -1 或 1
+                    else
+                        if length(Histories[index].index) >= (point.j - result + 1)
+                            random_change = Histories[index].index[point.j - result + 1]
+                        else
+                            random_change = rand([-1, 1])
+                        end
+                    end
+
+                    new_coords = copy(point.coords)
+                    new_coords[1] += random_change
+                    new_coords[2] += 1
+                    new_point = Point(new_coords, point.i, point.j + 1, point.k, 0)
+                    points[index] = new_point
+                    push!(trajectories[index], new_point)
+
+                    push!(Histories[index].index, random_change)
+
+                    for m in 1:length(points)
+                        if m != index && points[m].coords == new_point.coords
+                            m1 = points[index].k
+                            m2 = points[m].k
+                            prob = m1^theta / (m1^theta + m2^theta)
+                            if rand() < prob
+                                points[index] = Point(new_coords, points[index].i, points[index].j, m1 + m2, 0)
+                                points[m] = Point(points[m].coords, points[m].i, points[m].j, m1 + m2, 1)
+                                Histories[m].t = 1
+                                while length(Histories[m].index) < num_steps
+                                    push!(Histories[m].index, 0)
+                                end
+                            else
+                                points[m] = Point(new_coords, points[m].i, points[m].j, m1 + m2, 0)
+                                points[index] = Point(points[index].coords, points[index].i, points[index].j, m1 + m2, 1)
+                                Histories[index].t = 1
+                                while length(Histories[index].index) < num_steps
+                                    push!(Histories[index].index, 0)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        # 检查当前步数是否是特定步数（100, 200, ..., 2000）
+        if step in 100:100:2000
+            # 记录当前步数的结果
+            x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+            x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+            y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+
+            max_y = maximum(maximum(y) for y in y_coords)
+            top_points = []
+            top_points_origins = []
+
+            for (index, traj) in enumerate(trajectories)
+                if !isempty(traj)
+                    last_point = traj[end]
+                    if last_point.coords[2] == max_y
+                        push!(top_points, last_point.coords)
+                        origin_point = traj[1]
+                        push!(top_points_origins, origin_point.coords)
+                    end
+                end
+            end
+
+            # 记录特定步数时的结果
+            special_steps_results[step] = (
+                top_points = top_points,
+                top_points_origins = top_points_origins
+            )
+        end
+    end
+
+    # 将特定步数的结果存储到全局变量中
+    push!(final_top_points, [point[1] for point in special_steps_results[2000].top_points])
+    push!(final_top_points_original, [point[1] for point in special_steps_results[2000].top_points_origins])
+
+    # 输出特定步数的结果
+    for step in keys(special_steps_results)
+        println("Step $step: Top Points = $(special_steps_results[step].top_points), Origins = $(special_steps_results[step].top_points_origins)")
+    end
+
+    println("已经进行 $sim 次操作")
+end
+
+
